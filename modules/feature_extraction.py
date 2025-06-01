@@ -84,7 +84,7 @@ def extract_edge(contour: np.ndarray, start_point: Tuple[int, int],
 def classify_edge_type(edge_points: np.ndarray) -> str:
     """
     Classify whether an edge is convex, concave, or flat.
-    Simplified version for MVP.
+    Improved version using multiple sampling points.
     
     Args:
         edge_points: Points along the edge
@@ -95,30 +95,62 @@ def classify_edge_type(edge_points: np.ndarray) -> str:
     if len(edge_points) < 10:
         return 'flat'
     
+    # Use multiple sample points for more robust classification
+    num_samples = min(5, len(edge_points) // 3)
+    sample_indices = np.linspace(1, len(edge_points)-2, num_samples, dtype=int)
+    
     # Fit a line through start and end points
     start = edge_points[0]
     end = edge_points[-1]
-    
-    # Find the middle point
-    mid_idx = len(edge_points) // 2
-    mid_point = edge_points[mid_idx]
-    
-    # Calculate distance from middle point to the line
     line_vec = end - start
-    point_vec = mid_point - start
+    line_length = np.linalg.norm(line_vec)
     
-    # Cross product gives us which side of the line the point is on
-    cross = line_vec[0] * point_vec[1] - line_vec[1] * point_vec[0]
-    
-    # Distance from point to line
-    dist = np.abs(cross) / np.linalg.norm(line_vec)
-    
-    if dist < 10:  # Threshold for flat edges (adjusted for resized images)
+    if line_length < 1e-6:  # Avoid division by zero
         return 'flat'
-    elif cross > 0:
-        return 'convex'
+    
+    # Calculate distances and directions for all sample points
+    distances = []
+    directions = []
+    
+    for idx in sample_indices:
+        sample_point = edge_points[idx]
+        point_vec = sample_point - start
+        
+        # Cross product gives us which side of the line the point is on
+        # Note: In image coordinates, Y increases downward
+        cross = line_vec[0] * point_vec[1] - line_vec[1] * point_vec[0]
+        
+        # Distance from point to line
+        dist = np.abs(cross) / line_length
+        distances.append(dist)
+        directions.append(1 if cross > 0 else -1)
+    
+    # Calculate average distance and dominant direction
+    avg_distance = np.mean(distances)
+    max_distance = np.max(distances)
+    dominant_direction = np.sign(np.sum(directions))
+    
+    # Adjusted thresholds for better balance
+    flat_threshold = 2.0  # More conservative for flat detection
+    significant_threshold = 3.0  # Lower threshold for clear convex/concave
+    
+    # Classification logic
+    if max_distance < flat_threshold:
+        return 'flat'
+    elif avg_distance < significant_threshold:
+        # Check if most points agree on direction
+        direction_consistency = np.abs(np.sum(directions)) / len(directions)
+        if direction_consistency < 0.7:  # Stricter consensus required
+            return 'flat'
+    
+    # Classify based on dominant direction
+    # Note: Flipped logic to account for image coordinate system
+    if dominant_direction > 0:
+        return 'concave'  # Flipped
+    elif dominant_direction < 0:
+        return 'convex'   # Flipped
     else:
-        return 'concave'
+        return 'flat'
 
 
 def create_edge_descriptor(edge_points: np.ndarray) -> np.ndarray:
