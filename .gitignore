@@ -46,10 +46,21 @@ pieces/*.tiff
 # Results and outputs
 results/
 threshold_experiment_log.txt
+threshold_experiments.txt
+experiments/
 
 # Test files
 test_*.py
 
-# Temporary files
+# Claude AI
+.claude/
+
+# Docker
+docker-compose.override.yml
+
+# Backup and temporary files
 *.tmp
 *.temp
+*.backup
+*.orig
+*.bak
