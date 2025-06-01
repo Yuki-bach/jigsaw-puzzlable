@@ -6,10 +6,33 @@ Finds matching puzzle pieces from a collection of white jigsaw pieces.
 
 import time
 import sys
+import os
+from datetime import datetime
 from modules.preprocessing import load_pieces, preprocess_all_pieces
 from modules.feature_extraction import extract_features
 from modules.matching import find_matching_pairs, form_groups
 from modules.visualization import save_results
+
+
+def save_threshold_experiment(threshold, num_matches, groups, processing_time):
+    """Save threshold experiment results to a file."""
+    experiment_file = "threshold_experiment_log.txt"
+    
+    with open(experiment_file, 'a', encoding='utf-8') as f:
+        f.write(f"\n{'='*50}\n")
+        f.write(f"実験日時: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write(f"閾値: {threshold}\n")
+        f.write(f"マッチ数: {num_matches}\n")
+        f.write(f"グループ数: {len(groups)}\n")
+        f.write(f"処理時間: {processing_time:.2f}秒\n")
+        f.write(f"グループ詳細:\n")
+        
+        for i, group in enumerate(groups):
+            f.write(f"  グループ{i+1}: {len(group)}個")
+            if len(group) <= 5:
+                f.write(f" ({', '.join(group)})\n")
+            else:
+                f.write(f" ({', '.join(group[:3])} ... 他{len(group)-3}個)\n")
 
 
 def main():
@@ -49,15 +72,15 @@ def main():
     print("\nStep 4: Finding matching pairs...")
     print("This may take a few minutes...")
     
-    # Start with a lower threshold for MVP
-    threshold = 0.75
+    # Start with the highest threshold for the most selective matching
+    threshold = 0.99
     matches = find_matching_pairs(features, threshold=threshold)
     print(f"Found {len(matches)} potential matches with threshold {threshold}")
     
-    # If too few matches, try lowering threshold
-    if len(matches) < 5:
+    # If too few matches, try slightly lower threshold
+    if len(matches) < 50:
         print("Few matches found, trying lower threshold...")
-        threshold = 0.7
+        threshold = 0.985
         matches = find_matching_pairs(features, threshold=threshold)
         print(f"Found {len(matches)} potential matches with threshold {threshold}")
     
@@ -78,6 +101,9 @@ def main():
     print("\nStep 6: Saving results...")
     processing_time = time.time() - start_time
     save_results(groups, pieces, features, matches, processing_time, "results/")
+    
+    # Save threshold experiment results
+    save_threshold_experiment(threshold, len(matches), groups, processing_time)
     
     print(f"\nProcessing complete in {processing_time:.2f} seconds!")
     print("Results saved to:")
