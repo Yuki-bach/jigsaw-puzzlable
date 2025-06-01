@@ -36,7 +36,20 @@ ENV/
 Thumbs.db
 
 # Project specific
-results/*.png
-results/*.json
-test_*.py
+# Piece images
+pieces/*.jpg
+pieces/*.jpeg
+pieces/*.png
+pieces/*.bmp
+pieces/*.tiff
+
+# Results and outputs
+results/
 threshold_experiment_log.txt
+
+# Test files
+test_*.py
+
+# Temporary files
+*.tmp
+*.temp
