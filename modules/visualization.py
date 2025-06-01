@@ -211,6 +211,122 @@ def save_summary(pieces_count: int, processed_count: int, matches_count: int,
             f.write("No groups were formed.\n")
 
 
+def create_connection_report(groups: List[List[str]], matches: List[Dict[str, Any]], 
+                           output_path: str) -> None:
+    """
+    Create a human-readable report of piece connections.
+    
+    Args:
+        groups: List of groups (each group is a list of piece names)
+        matches: List of all matches
+        output_path: Path to save the connection report
+    """
+    # Create match lookup for efficiency
+    match_lookup = {}
+    for match in matches:
+        key1 = (match['piece1'], match['piece2'])
+        key2 = (match['piece2'], match['piece1'])
+        match_lookup[key1] = match
+        match_lookup[key2] = match
+    
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write("=== ジグソーパズル ピース接続情報 ===\n\n")
+        
+        # Process each group
+        for group_idx, group in enumerate(groups):
+            f.write(f"グループ{group_idx + 1}: {len(group)}個のピース\n")
+            f.write("-" * 50 + "\n")
+            
+            if len(group) == 1:
+                f.write(f"  単独ピース: {group[0]}\n\n")
+                continue
+            
+            # Find all connections within this group
+            connections = []
+            for i, piece1 in enumerate(group):
+                for piece2 in group[i+1:]:
+                    key = (piece1, piece2)
+                    if key in match_lookup:
+                        match = match_lookup[key]
+                        connections.append(match)
+            
+            # Sort connections by score (highest first)
+            connections.sort(key=lambda x: x['score'], reverse=True)
+            
+            if not connections:
+                f.write(f"  接続情報なし（グループ内でマッチが見つかりませんでした）\n\n")
+                continue
+            
+            # Display connections
+            f.write(f"  発見された接続: {len(connections)}個\n\n")
+            
+            for conn in connections:
+                piece1 = conn['piece1'].replace('piece_', '').replace('.jpg', '')
+                piece2 = conn['piece2'].replace('piece_', '').replace('.jpg', '')
+                edge1 = translate_edge(conn['edge1'])
+                edge2 = translate_edge(conn['edge2'])
+                type1 = translate_edge_type(conn['edge1_type'])
+                type2 = translate_edge_type(conn['edge2_type'])
+                score = conn['score']
+                
+                f.write(f"  ピース{piece1}の{edge1}({type1}) ↔ "
+                       f"ピース{piece2}の{edge2}({type2})\n")
+                f.write(f"    マッチスコア: {score:.4f}\n")
+                
+                # Add spatial interpretation
+                spatial_hint = get_spatial_hint(conn['edge1'], conn['edge2'])
+                if spatial_hint:
+                    f.write(f"    配置ヒント: {spatial_hint}\n")
+                f.write("\n")
+            
+            f.write("\n")
+
+
+def translate_edge(edge: str) -> str:
+    """Translate edge direction to Japanese."""
+    translations = {
+        'top': '上辺',
+        'bottom': '下辺', 
+        'left': '左辺',
+        'right': '右辺'
+    }
+    return translations.get(edge, edge)
+
+
+def translate_edge_type(edge_type: str) -> str:
+    """Translate edge type to Japanese."""
+    translations = {
+        'flat': '平坦',
+        'convex': '凸',
+        'concave': '凹'
+    }
+    return translations.get(edge_type, edge_type)
+
+
+def get_spatial_hint(edge1: str, edge2: str) -> str:
+    """Generate spatial positioning hint based on edge directions."""
+    edge_pairs = {
+        ('top', 'top'): 'ピース同士を横に並べる',
+        ('bottom', 'bottom'): 'ピース同士を横に並べる', 
+        ('left', 'left'): 'ピース同士を縦に並べる',
+        ('right', 'right'): 'ピース同士を縦に並べる',
+        ('top', 'bottom'): 'ピース1の上にピース2を配置',
+        ('bottom', 'top'): 'ピース2の上にピース1を配置',
+        ('left', 'right'): 'ピース1の左にピース2を配置', 
+        ('right', 'left'): 'ピース2の左にピース1を配置'
+    }
+    
+    key1 = (edge1, edge2)
+    key2 = (edge2, edge1)
+    
+    if key1 in edge_pairs:
+        return edge_pairs[key1]
+    elif key2 in edge_pairs:
+        return edge_pairs[key2]
+    else:
+        return f"{edge1}辺と{edge2}辺の接続"
+
+
 def save_results(groups: List[List[str]], pieces: Dict[str, np.ndarray],
                 features: Dict[str, Dict[str, Any]], matches: List[Dict[str, Any]],
                 processing_time: float, output_dir: str) -> None:
@@ -233,6 +349,10 @@ def save_results(groups: List[List[str]], pieces: Dict[str, np.ndarray],
     # Save visualization
     visualize_groups(groups, pieces, features, matches, 
                     os.path.join(output_dir, 'groups.png'))
+    
+    # Save connection report
+    create_connection_report(groups, matches,
+                           os.path.join(output_dir, 'connections.txt'))
     
     # Save matching log
     save_matching_log(matches, groups, 

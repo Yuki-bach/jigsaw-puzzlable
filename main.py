@@ -108,6 +108,7 @@ def main():
     print(f"\nProcessing complete in {processing_time:.2f} seconds!")
     print("Results saved to:")
     print("  - results/groups.png (visualization)")
+    print("  - results/connections.txt (piece connections)")
     print("  - results/matching_log.json (detailed matches)")
     print("  - results/summary.txt (summary)")
     
