@@ -4,10 +4,9 @@ from typing import Dict, List, Tuple, Any
 import math
 
 
-def find_corners(contour: np.ndarray, num_corners: int = 4) -> List[Tuple[int, int]]:
+def find_corners_simple(contour: np.ndarray, num_corners: int = 4) -> List[Tuple[int, int]]:
     """
-    Find the corners of a puzzle piece using the Douglas-Peucker algorithm
-    and geometric analysis.
+    Find the corners of a puzzle piece using a simpler bounding box approach.
     
     Args:
         contour: The contour of the puzzle piece
@@ -16,76 +15,24 @@ def find_corners(contour: np.ndarray, num_corners: int = 4) -> List[Tuple[int, i
     Returns:
         List of corner points as (x, y) tuples
     """
-    # Approximate the contour to reduce points
-    epsilon = 0.02 * cv2.arcLength(contour, True)
-    approx = cv2.approxPolyDP(contour, epsilon, True)
+    # Get the minimum area rectangle
+    rect = cv2.minAreaRect(contour)
+    box = cv2.boxPoints(rect)
+    box = np.int0(box)
     
-    # Calculate curvature for each point
-    contour_points = contour.reshape(-1, 2)
-    n_points = len(contour_points)
+    # Convert to list of tuples
+    corners = [tuple(point) for point in box]
     
-    # Calculate angles at each point
-    angles = []
-    window_size = 10  # Look at neighboring points
+    # Sort corners to ensure consistent ordering (top-left, top-right, bottom-right, bottom-left)
+    corners = sorted(corners, key=lambda p: (p[1], p[0]))  # Sort by y, then x
     
-    for i in range(n_points):
-        # Get neighboring points
-        prev_idx = (i - window_size) % n_points
-        next_idx = (i + window_size) % n_points
-        
-        prev_point = contour_points[prev_idx]
-        curr_point = contour_points[i]
-        next_point = contour_points[next_idx]
-        
-        # Calculate vectors
-        v1 = prev_point - curr_point
-        v2 = next_point - curr_point
-        
-        # Calculate angle
-        angle = np.arctan2(v2[1], v2[0]) - np.arctan2(v1[1], v1[0])
-        angle = np.abs(angle)
-        if angle > np.pi:
-            angle = 2 * np.pi - angle
-            
-        angles.append((angle, i, curr_point))
-    
-    # Sort by angle (corners have the smallest angles)
-    angles.sort(key=lambda x: x[0])
-    
-    # Get the top N corner candidates
-    corner_candidates = angles[:num_corners * 2]
-    
-    # Filter corners that are too close together
-    corners = []
-    min_distance = cv2.arcLength(contour, True) / (num_corners * 2)
-    
-    for angle, idx, point in corner_candidates:
-        too_close = False
-        for corner in corners:
-            dist = np.linalg.norm(point - corner)
-            if dist < min_distance:
-                too_close = True
-                break
-        
-        if not too_close:
-            corners.append(point)
-            if len(corners) == num_corners:
-                break
-    
-    # Sort corners clockwise starting from top-left
+    # Rearrange to get: top-left, top-right, bottom-right, bottom-left
     if len(corners) == 4:
-        center = np.mean(corners, axis=0)
-        
-        def angle_from_center(point):
-            return math.atan2(point[1] - center[1], point[0] - center[0])
-        
-        corners.sort(key=angle_from_center)
-        
-        # Find top-left corner (minimum x+y)
-        min_idx = np.argmin([p[0] + p[1] for p in corners])
-        corners = corners[min_idx:] + corners[:min_idx]
+        top_two = sorted(corners[:2], key=lambda p: p[0])  # Top row sorted by x
+        bottom_two = sorted(corners[2:], key=lambda p: p[0], reverse=True)  # Bottom row sorted by x desc
+        corners = top_two + bottom_two
     
-    return [tuple(point) for point in corners]
+    return corners
 
 
 def extract_edge(contour: np.ndarray, start_point: Tuple[int, int], 
@@ -103,27 +50,33 @@ def extract_edge(contour: np.ndarray, start_point: Tuple[int, int],
     """
     contour_points = contour.reshape(-1, 2)
     
-    # Find indices of start and end points
-    start_idx = None
-    end_idx = None
+    # Find indices of closest points to start and end
+    start_distances = np.sum((contour_points - np.array(start_point))**2, axis=1)
+    end_distances = np.sum((contour_points - np.array(end_point))**2, axis=1)
     
-    for i, point in enumerate(contour_points):
-        if np.allclose(point, start_point, atol=5):
-            start_idx = i
-        if np.allclose(point, end_point, atol=5):
-            end_idx = i
+    start_idx = np.argmin(start_distances)
+    end_idx = np.argmin(end_distances)
     
-    if start_idx is None or end_idx is None:
-        return np.array([])
-    
-    # Extract edge points
+    # Extract edge points going clockwise
     if end_idx > start_idx:
         edge_points = contour_points[start_idx:end_idx+1]
     else:
+        # Wrap around the contour
         edge_points = np.concatenate([
             contour_points[start_idx:],
             contour_points[:end_idx+1]
         ])
+    
+    # If we got more than half the contour, we went the wrong way
+    if len(edge_points) > len(contour_points) // 2:
+        # Go the other way
+        if start_idx > end_idx:
+            edge_points = contour_points[end_idx:start_idx+1][::-1]
+        else:
+            edge_points = np.concatenate([
+                contour_points[end_idx:],
+                contour_points[:start_idx+1]
+            ])[::-1]
     
     return edge_points
 
@@ -131,6 +84,7 @@ def extract_edge(contour: np.ndarray, start_point: Tuple[int, int],
 def classify_edge_type(edge_points: np.ndarray) -> str:
     """
     Classify whether an edge is convex, concave, or flat.
+    Simplified version for MVP.
     
     Args:
         edge_points: Points along the edge
@@ -138,35 +92,30 @@ def classify_edge_type(edge_points: np.ndarray) -> str:
     Returns:
         'convex', 'concave', or 'flat'
     """
-    if len(edge_points) < 3:
+    if len(edge_points) < 10:
         return 'flat'
     
     # Fit a line through start and end points
     start = edge_points[0]
     end = edge_points[-1]
     
-    # Calculate distances from points to the line
-    distances = []
-    for point in edge_points[1:-1]:
-        # Distance from point to line
-        dist = np.abs(np.cross(end - start, start - point)) / np.linalg.norm(end - start)
-        
-        # Determine which side of the line the point is on
-        v1 = end - start
-        v2 = point - start
-        cross = v1[0] * v2[1] - v1[1] * v2[0]
-        
-        distances.append(dist if cross > 0 else -dist)
+    # Find the middle point
+    mid_idx = len(edge_points) // 2
+    mid_point = edge_points[mid_idx]
     
-    if not distances:
+    # Calculate distance from middle point to the line
+    line_vec = end - start
+    point_vec = mid_point - start
+    
+    # Cross product gives us which side of the line the point is on
+    cross = line_vec[0] * point_vec[1] - line_vec[1] * point_vec[0]
+    
+    # Distance from point to line
+    dist = np.abs(cross) / np.linalg.norm(line_vec)
+    
+    if dist < 10:  # Threshold for flat edges (adjusted for resized images)
         return 'flat'
-    
-    # Determine edge type based on average deviation
-    avg_distance = np.mean(distances)
-    
-    if abs(avg_distance) < 5:  # Threshold for flat edges
-        return 'flat'
-    elif avg_distance > 0:
+    elif cross > 0:
         return 'convex'
     else:
         return 'concave'
@@ -278,7 +227,7 @@ def extract_features(processed_pieces: Dict[str, Dict[str, Any]]) -> Dict[str, D
         contour = piece_data['contour']
         
         # Find corners
-        corners = find_corners(contour)
+        corners = find_corners_simple(contour)
         
         if len(corners) == 4:
             # Extract edges

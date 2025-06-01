@@ -1,0 +1,18 @@
+=== Jigsaw Puzzle Matching Results ===
+
+Input pieces: 20
+Successfully processed: 20
+Total matches found: 246
+Groups formed: 1
+Processing time: 4.97 seconds
+
+=== Group Details ===
+
+Group 1: 20 pieces
+Pieces: piece_001.jpg, piece_002.jpg, piece_003.jpg, piece_004.jpg, piece_005.jpg, piece_006.jpg, piece_007.jpg, piece_008.jpg, piece_009.jpg, piece_010.jpg, piece_011.jpg, piece_012.jpg, piece_013.jpg, piece_014.jpg, piece_015.jpg, piece_016.jpg, piece_017.jpg, piece_018.jpg, piece_019.jpg, piece_020.jpg
+
+=== Statistics ===
+
+Largest group: 20 pieces
+Average group size: 20.0 pieces
+Total pieces in groups: 20
