@@ -1,18 +1,18 @@
 === Jigsaw Puzzle Matching Results ===
 
-Input pieces: 20
-Successfully processed: 20
-Total matches found: 246
+Input pieces: 249
+Successfully processed: 249
+Total matches found: 43865
 Groups formed: 1
-Processing time: 4.97 seconds
+Processing time: 114.81 seconds
 
 === Group Details ===
 
-Group 1: 20 pieces
-Pieces: piece_001.jpg, piece_002.jpg, piece_003.jpg, piece_004.jpg, piece_005.jpg, piece_006.jpg, piece_007.jpg, piece_008.jpg, piece_009.jpg, piece_010.jpg, piece_011.jpg, piece_012.jpg, piece_013.jpg, piece_014.jpg, piece_015.jpg, piece_016.jpg, piece_017.jpg, piece_018.jpg, piece_019.jpg, piece_020.jpg
+Group 1: 249 pieces
+Pieces: piece_001.jpg, piece_002.jpg, piece_003.jpg, piece_004.jpg, piece_005.jpg, piece_006.jpg, piece_007.jpg, piece_008.jpg, piece_009.jpg, piece_010.jpg, piece_011.jpg, piece_012.jpg, piece_013.jpg, piece_014.jpg, piece_015.jpg, piece_016.jpg, piece_017.jpg, piece_018.jpg, piece_019.jpg, piece_020.jpg, piece_021.jpg, piece_022.jpg, piece_023.jpg, piece_024.jpg, piece_025.jpg, piece_026.jpg, piece_027.jpg, piece_028.jpg, piece_029.jpg, piece_030.jpg, piece_031.jpg, piece_032.jpg, piece_033.jpg, piece_034.jpg, piece_035.jpg, piece_036.jpg, piece_037.jpg, piece_038.jpg, piece_039.jpg, piece_040.jpg, piece_041.jpg, piece_042.jpg, piece_043.jpg, piece_044.jpg, piece_045.jpg, piece_046.jpg, piece_047.jpg, piece_048.jpg, piece_049.jpg, piece_050.jpg, piece_051.jpg, piece_052.jpg, piece_053.jpg, piece_054.jpg, piece_055.jpg, piece_056.jpg, piece_057.jpg, piece_058.jpg, piece_059.jpg, piece_060.jpg, piece_061.jpg, piece_062.jpg, piece_063.jpg, piece_064.jpg, piece_065.jpg, piece_066.jpg, piece_067.jpg, piece_068.jpg, piece_069.jpg, piece_070.jpg, piece_071.jpg, piece_072.jpg, piece_073.jpg, piece_074.jpg, piece_075.jpg, piece_076.jpg, piece_077.jpg, piece_078.jpg, piece_079.jpg, piece_080.jpg, piece_081.jpg, piece_082.jpg, piece_083.jpg, piece_084.jpg, piece_085.jpg, piece_086.jpg, piece_087.jpg, piece_088.jpg, piece_089.jpg, piece_090.jpg, piece_091.jpg, piece_092.jpg, piece_093.jpg, piece_094.jpg, piece_095.jpg, piece_096.jpg, piece_097.jpg, piece_098.jpg, piece_099.jpg, piece_100.jpg, piece_101.jpg, piece_102.jpg, piece_103.jpg, piece_104.jpg, piece_105.jpg, piece_106.jpg, piece_107.jpg, piece_108.jpg, piece_109.jpg, piece_110.jpg, piece_111.jpg, piece_112.jpg, piece_113.jpg, piece_114.jpg, piece_115.jpg, piece_116.jpg, piece_117.jpg, piece_118.jpg, piece_119.jpg, piece_120.jpg, piece_121.jpg, piece_122.jpg, piece_123.jpg, piece_124.jpg, piece_125.jpg, piece_126.jpg, piece_127.jpg, piece_128.jpg, piece_129.jpg, piece_130.jpg, piece_131.jpg, piece_132.jpg, piece_133.jpg, piece_134.jpg, piece_135.jpg, piece_136.jpg, piece_137.jpg, piece_138.jpg, piece_139.jpg, piece_140.jpg, piece_141.jpg, piece_142.jpg, piece_143.jpg, piece_144.jpg, piece_145.jpg, piece_146.jpg, piece_147.jpg, piece_148.jpg, piece_149.jpg, piece_150.jpg, piece_151.jpg, piece_152.jpg, piece_153.jpg, piece_154.jpg, piece_155.jpg, piece_156.jpg, piece_157.jpg, piece_158.jpg, piece_159.jpg, piece_160.jpg, piece_161.jpg, piece_162.jpg, piece_163.jpg, piece_164.jpg, piece_165.jpg, piece_166.jpg, piece_167.jpg, piece_168.jpg, piece_169.jpg, piece_170.jpg, piece_171.jpg, piece_172.jpg, piece_173.jpg, piece_174.jpg, piece_175.jpg, piece_176.jpg, piece_177.jpg, piece_178.jpg, piece_179.jpg, piece_180.jpg, piece_181.jpg, piece_182.jpg, piece_183.jpg, piece_184.jpg, piece_185.jpg, piece_186.jpg, piece_187.jpg, piece_188.jpg, piece_189.jpg, piece_190.jpg, piece_191.jpg, piece_192.jpg, piece_193.jpg, piece_194.jpg, piece_195.jpg, piece_196.jpg, piece_197.jpg, piece_198.jpg, piece_199.jpg, piece_200.jpg, piece_201.jpg, piece_202.jpg, piece_203.jpg, piece_204.jpg, piece_205.jpg, piece_206.jpg, piece_207.jpg, piece_208.jpg, piece_209.jpg, piece_210.jpg, piece_211.jpg, piece_212.jpg, piece_213.jpg, piece_214.jpg, piece_215.jpg, piece_216.jpg, piece_217.jpg, piece_218.jpg, piece_219.jpg, piece_220.jpg, piece_221.jpg, piece_222.jpg, piece_223.jpg, piece_224.jpg, piece_225.jpg, piece_226.jpg, piece_227.jpg, piece_228.jpg, piece_229.jpg, piece_230.jpg, piece_231.jpg, piece_232.jpg, piece_233.jpg, piece_234.jpg, piece_235.jpg, piece_236.jpg, piece_237.jpg, piece_238.jpg, piece_239.jpg, piece_240.jpg, piece_241.jpg, piece_242.jpg, piece_243.jpg, piece_244.jpg, piece_245.jpg, piece_246.jpg, piece_247.jpg, piece_248.jpg, piece_249.jpg
 
 === Statistics ===
 
-Largest group: 20 pieces
-Average group size: 20.0 pieces
-Total pieces in groups: 20
+Largest group: 249 pieces
+Average group size: 249.0 pieces
+Total pieces in groups: 249
