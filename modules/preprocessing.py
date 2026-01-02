@@ -84,6 +84,11 @@ def preprocess_piece(image: np.ndarray) -> Tuple[Optional[np.ndarray], Optional[
         # Get the largest contour (should be the puzzle piece)
         contour = max(contours, key=cv2.contourArea)
 
+        # Normalize contour orientation to counter-clockwise
+        # cv2.contourArea returns positive for counter-clockwise, negative for clockwise
+        if cv2.contourArea(contour, oriented=True) < 0:
+            contour = contour[::-1]
+
         # Filter by minimum area (avoid noise)
         area = cv2.contourArea(contour)
         if area < 10000:  # Minimum area threshold
@@ -149,6 +154,11 @@ def preprocess_piece_adaptive(image: np.ndarray) -> Tuple[Optional[np.ndarray], 
             return None, None, metadata
 
         contour = max(contours, key=cv2.contourArea)
+
+        # Normalize contour orientation to counter-clockwise
+        if cv2.contourArea(contour, oriented=True) < 0:
+            contour = contour[::-1]
+
         area = cv2.contourArea(contour)
 
         if area < 10000:

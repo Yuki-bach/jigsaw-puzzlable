@@ -126,6 +126,7 @@ def classify_edge(edge_points: np.ndarray) -> Tuple[str, float]:
     Classify an edge as convex, concave, or flat.
 
     Uses the deviation from a straight line between start and end points.
+    Focuses on the central region where tabs/blanks typically appear.
 
     Args:
         edge_points: Points along the edge
@@ -145,51 +146,58 @@ def classify_edge(edge_points: np.ndarray) -> Tuple[str, float]:
     if len(deviations) == 0:
         return 'flat', 0.5
 
-    # Statistics
-    max_deviation = np.max(np.abs(deviations))
-    mean_deviation = np.mean(deviations)
-    std_deviation = np.std(deviations)
-
     # Edge length
     edge_length = np.linalg.norm(end - start)
 
     if edge_length < 1e-6:
         return 'flat', 0.5
 
+    # Focus on the central region (20%-80%) where tabs/blanks typically appear
+    n = len(deviations)
+    center_start = int(n * 0.2)
+    center_end = int(n * 0.8)
+    center_deviations = deviations[center_start:center_end]
+
+    if len(center_deviations) == 0:
+        center_deviations = deviations
+
+    # Statistics focused on center region
+    max_deviation = np.max(np.abs(deviations))
+    center_max = np.max(center_deviations) if len(center_deviations) > 0 else 0
+    center_min = np.min(center_deviations) if len(center_deviations) > 0 else 0
+
     # Relative deviation
     relative_max = max_deviation / edge_length
-    relative_mean = abs(mean_deviation) / edge_length
 
-    # Classification thresholds
-    flat_threshold = 0.03  # Less than 3% deviation is flat
-    significant_threshold = 0.05  # More than 5% is clearly convex/concave
+    # Classification threshold - extremely low since there are no edge pieces
+    # All edges should be either convex (tab) or concave (blank)
+    flat_threshold = 0.005  # Less than 0.5% deviation is flat (essentially never)
 
     if relative_max < flat_threshold:
         return 'flat', 0.95
 
-    # Determine direction based on mean deviation
-    # Positive mean = points are to the left of the line (when going from start to end)
-    # For puzzle pieces, we need to consider the coordinate system
+    # Determine direction based on the dominant deviation in the center region
+    # This depends on the contour orientation
 
-    if relative_mean < -significant_threshold:
-        confidence = min(0.99, 0.7 + relative_max)
+    # Find the peak deviation (maximum absolute value in center)
+    center_peak_idx = np.argmax(np.abs(center_deviations))
+    center_peak_value = center_deviations[center_peak_idx]
+
+    # Calculate the prominence of the peak
+    relative_center_peak = abs(center_peak_value) / edge_length
+
+    if relative_center_peak < flat_threshold:
+        return 'flat', 0.9
+
+    # Determine type based on the sign of the dominant peak
+    if center_peak_value < 0:
+        # Negative deviation = convex (tab pointing outward)
+        confidence = min(0.99, 0.7 + relative_center_peak * 2)
         return 'convex', confidence
-    elif relative_mean > significant_threshold:
-        confidence = min(0.99, 0.7 + relative_max)
-        return 'concave', confidence
     else:
-        # Check if there's a clear bump in one direction
-        positive_sum = np.sum(deviations[deviations > 0])
-        negative_sum = abs(np.sum(deviations[deviations < 0]))
-
-        if positive_sum > negative_sum * 1.5 and relative_max > flat_threshold:
-            confidence = min(0.9, 0.6 + relative_max)
-            return 'concave', confidence
-        elif negative_sum > positive_sum * 1.5 and relative_max > flat_threshold:
-            confidence = min(0.9, 0.6 + relative_max)
-            return 'convex', confidence
-        else:
-            return 'flat', 0.7
+        # Positive deviation = concave (blank/indent)
+        confidence = min(0.99, 0.7 + relative_center_peak * 2)
+        return 'concave', confidence
 
 
 def compute_perpendicular_distances(points: np.ndarray,
