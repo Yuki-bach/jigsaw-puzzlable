@@ -31,8 +31,8 @@ def main():
     pieces_dir = "pieces/"
     output_dir = "results/"
     match_threshold = 0.7
-    min_score = 0.78  # Higher minimum for better quality
-    score_gap_ratio = 1.02  # Relaxed gap ratio (white pieces have similar scores)
+    min_score = 0.92  # Very high minimum - only top matches
+    score_gap_ratio = 1.005  # Nearly disabled - rely on mutual best match only
 
     # Step 1: Load pieces
     print("Step 1: Loading pieces...")

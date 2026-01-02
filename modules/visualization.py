@@ -251,12 +251,12 @@ def save_assembly_guide(groups: List[Dict[str, Any]], output_dir: str) -> None:
             for j, conn in enumerate(sorted_conns):
                 p1 = conn['piece1'].replace('piece_', '')
                 p2 = conn['piece2'].replace('piece_', '')
-                e1 = translate_edge_jp(conn['edge1'])
-                e2 = translate_edge_jp(conn['edge2'])
+                t1 = translate_type_jp(conn.get('edge1_type', 'unknown'))
+                t2 = translate_type_jp(conn.get('edge2_type', 'unknown'))
                 score = conn['score']
 
-                f.write(f"Step {j+1}. ピース {p1} の {e1}\n")
-                f.write(f"         ↔ ピース {p2} の {e2}\n")
+                f.write(f"Step {j+1}. ピース {p1} ({t1})\n")
+                f.write(f"         ↔ ピース {p2} ({t2})\n")
                 f.write(f"         信頼度: {score:.1%}\n\n")
 
             f.write("\n")
@@ -294,8 +294,10 @@ def save_matching_log(groups: List[Dict[str, Any]],
             group_connections.append({
                 'piece1': conn['piece1'],
                 'edge1': conn['edge1'],
+                'edge1_type': conn.get('edge1_type', 'unknown'),
                 'piece2': conn['piece2'],
                 'edge2': conn['edge2'],
+                'edge2_type': conn.get('edge2_type', 'unknown'),
                 'score': float(conn['score'])
             })
 
@@ -330,3 +332,14 @@ def translate_edge_jp(edge_name: str) -> str:
         'left': '左辺'
     }
     return translations.get(edge_name, edge_name)
+
+
+def translate_type_jp(edge_type: str) -> str:
+    """Translate edge type to Japanese."""
+    translations = {
+        'convex': '凸',
+        'concave': '凹',
+        'flat': '平',
+        'unknown': '不明'
+    }
+    return translations.get(edge_type, edge_type)

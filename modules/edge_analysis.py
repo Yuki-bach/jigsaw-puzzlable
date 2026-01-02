@@ -190,12 +190,13 @@ def classify_edge(edge_points: np.ndarray) -> Tuple[str, float]:
         return 'flat', 0.9
 
     # Determine type based on the sign of the dominant peak
-    if center_peak_value < 0:
-        # Negative deviation = convex (tab pointing outward)
+    # With counter-clockwise contour, positive deviation = left of line = outside
+    if center_peak_value > 0:
+        # Positive deviation = outside = convex (tab pointing outward)
         confidence = min(0.99, 0.7 + relative_center_peak * 2)
         return 'convex', confidence
     else:
-        # Positive deviation = concave (blank/indent)
+        # Negative deviation = inside = concave (blank/indent)
         confidence = min(0.99, 0.7 + relative_center_peak * 2)
         return 'concave', confidence
 
