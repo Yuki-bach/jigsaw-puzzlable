@@ -1,207 +1,270 @@
+"""
+Matching module for puzzle pieces.
+Implements two-stage matching: type filter -> profile distance.
+"""
+
 import numpy as np
-from typing import Dict, List, Tuple, Any
-from scipy.spatial.distance import cdist
+from typing import Dict, List, Any, Optional
 
 
-def are_compatible_types(type1: str, type2: str) -> bool:
-    """
-    Check if two edge types are compatible for matching.
-    
-    Args:
-        type1: Type of first edge ('convex', 'concave', or 'flat')
-        type2: Type of second edge
-        
-    Returns:
-        True if edges can potentially match
-    """
-    # Convex matches with concave
-    if (type1 == 'convex' and type2 == 'concave') or \
-       (type1 == 'concave' and type2 == 'convex'):
-        return True
-    
-    # Flat edges can only match with flat edges
-    if type1 == 'flat' and type2 == 'flat':
-        return True
-    
-    return False
-
-
-def match_edges(edge1: Dict[str, Any], edge2: Dict[str, Any], 
-                piece1_name: str, piece2_name: str) -> float:
-    """
-    Calculate similarity score between two edges.
-    
-    Args:
-        edge1: First edge data
-        edge2: Second edge data
-        piece1_name: Name of first piece
-        piece2_name: Name of second piece
-        
-    Returns:
-        Similarity score between 0.0 and 1.0
-    """
-    # Check if edge types are compatible
-    if not are_compatible_types(edge1['type'], edge2['type']):
-        return 0.0
-    
-    # If either edge has no descriptor, return 0
-    if len(edge1['descriptor']) == 0 or len(edge2['descriptor']) == 0:
-        return 0.0
-    
-    # Compare edge lengths (should be similar)
-    length_ratio = min(edge1['length'], edge2['length']) / max(edge1['length'], edge2['length'])
-    if length_ratio < 0.8:  # Edges with very different lengths unlikely to match
-        return 0.0
-    
-    # For convex-concave pairs, invert one descriptor
-    descriptor1 = edge1['descriptor'].copy()
-    descriptor2 = edge2['descriptor'].copy()
-    
-    if edge1['type'] == 'convex' and edge2['type'] == 'concave':
-        descriptor2 = -descriptor2
-    elif edge1['type'] == 'concave' and edge2['type'] == 'convex':
-        descriptor1 = -descriptor1
-    
-    # Calculate correlation between descriptors
-    if len(descriptor1) == len(descriptor2):
-        # Normalize descriptors
-        if np.std(descriptor1) > 0 and np.std(descriptor2) > 0:
-            descriptor1_norm = (descriptor1 - np.mean(descriptor1)) / np.std(descriptor1)
-            descriptor2_norm = (descriptor2 - np.mean(descriptor2)) / np.std(descriptor2)
-            
-            # Calculate correlation
-            correlation = np.corrcoef(descriptor1_norm, descriptor2_norm)[0, 1]
-            
-            # Convert correlation to similarity score (0 to 1)
-            similarity = (correlation + 1) / 2
-            
-            # Weight by length ratio
-            final_score = similarity * (0.7 + 0.3 * length_ratio)
-            
-            return final_score
-    
-    return 0.0
-
-
-def find_matching_pairs(features: Dict[str, Dict[str, Any]], 
-                       threshold: float = 0.8) -> List[Dict[str, Any]]:
+def find_matching_pairs(features: Dict[str, Dict[str, Any]],
+                        threshold: float = 0.7) -> List[Dict[str, Any]]:
     """
     Find all matching pairs of edges between pieces.
-    
+
+    Uses two-stage matching:
+    1. Filter by edge type compatibility (convex-concave or flat-flat)
+    2. Compute profile distance and score
+
     Args:
         features: Dictionary of extracted features for all pieces
-        threshold: Minimum similarity score to consider a match
-        
+        threshold: Minimum score to consider a match
+
     Returns:
-        List of matching pairs with similarity scores
+        List of matching pairs with scores
     """
     matches = []
     piece_names = list(features.keys())
-    
-    # Compare all pairs of pieces
-    for i in range(len(piece_names)):
-        for j in range(i + 1, len(piece_names)):
-            piece1_name = piece_names[i]
-            piece2_name = piece_names[j]
-            
-            piece1_features = features[piece1_name]
-            piece2_features = features[piece2_name]
-            
-            # Compare all edge combinations
-            edge_names = ['top', 'right', 'bottom', 'left']
-            
-            for edge1_name in edge_names:
-                for edge2_name in edge_names:
-                    edge1 = piece1_features['edges'][edge1_name]
-                    edge2 = piece2_features['edges'][edge2_name]
-                    
-                    score = match_edges(edge1, edge2, piece1_name, piece2_name)
-                    
-                    if score >= threshold:
-                        matches.append({
-                            'piece1': piece1_name,
-                            'piece2': piece2_name,
-                            'edge1': edge1_name,
-                            'edge2': edge2_name,
-                            'score': score,
-                            'edge1_type': edge1['type'],
-                            'edge2_type': edge2['type']
-                        })
-    
-    # Sort matches by score (highest first)
+    edge_names = ['top', 'right', 'bottom', 'left']
+
+    # Organize edges by type for faster filtering
+    convex_edges = []
+    concave_edges = []
+    flat_edges = []
+
+    for piece_name in piece_names:
+        piece_features = features[piece_name]
+        for edge_name in edge_names:
+            edge = piece_features['edges'][edge_name]
+            entry = (piece_name, edge_name, edge)
+
+            if edge['type'] == 'convex':
+                convex_edges.append(entry)
+            elif edge['type'] == 'concave':
+                concave_edges.append(entry)
+            elif edge['type'] == 'flat':
+                flat_edges.append(entry)
+
+    # Match convex with concave
+    for conv_piece, conv_edge_name, conv_edge in convex_edges:
+        for conc_piece, conc_edge_name, conc_edge in concave_edges:
+            # Skip same piece
+            if conv_piece == conc_piece:
+                continue
+
+            score = compute_match_score(conv_edge, conc_edge)
+
+            if score >= threshold:
+                matches.append({
+                    'piece1': conv_piece,
+                    'edge1': conv_edge_name,
+                    'piece2': conc_piece,
+                    'edge2': conc_edge_name,
+                    'score': score,
+                    'edge1_type': 'convex',
+                    'edge2_type': 'concave'
+                })
+
+    # Match flat with flat (less common, usually border pieces)
+    for i, (flat1_piece, flat1_edge_name, flat1_edge) in enumerate(flat_edges):
+        for flat2_piece, flat2_edge_name, flat2_edge in flat_edges[i + 1:]:
+            # Skip same piece
+            if flat1_piece == flat2_piece:
+                continue
+
+            score = compute_match_score_flat(flat1_edge, flat2_edge)
+
+            if score >= threshold:
+                matches.append({
+                    'piece1': flat1_piece,
+                    'edge1': flat1_edge_name,
+                    'piece2': flat2_piece,
+                    'edge2': flat2_edge_name,
+                    'score': score,
+                    'edge1_type': 'flat',
+                    'edge2_type': 'flat'
+                })
+
+    # Sort by score (highest first)
     matches.sort(key=lambda x: x['score'], reverse=True)
-    
+
     return matches
 
 
-def form_groups(matches: List[Dict[str, Any]]) -> List[List[str]]:
+def compute_match_score(edge1: Dict[str, Any], edge2: Dict[str, Any]) -> float:
     """
-    Form groups of connected pieces from pairwise matches.
-    
+    Compute matching score between a convex and concave edge.
+
     Args:
-        matches: List of matching pairs
-        
+        edge1: First edge data (convex or concave)
+        edge2: Second edge data (the opposite type)
+
     Returns:
-        List of groups, where each group is a list of piece names
+        Score between 0.0 and 1.0
     """
-    # Create adjacency list
-    connections = {}
-    
-    for match in matches:
-        piece1 = match['piece1']
-        piece2 = match['piece2']
-        
-        if piece1 not in connections:
-            connections[piece1] = []
-        if piece2 not in connections:
-            connections[piece2] = []
-        
-        connections[piece1].append(piece2)
-        connections[piece2].append(piece1)
-    
-    # Find connected components using DFS
-    visited = set()
-    groups = []
-    
-    def dfs(piece, group):
-        visited.add(piece)
-        group.append(piece)
-        
-        if piece in connections:
-            for neighbor in connections[piece]:
-                if neighbor not in visited:
-                    dfs(neighbor, group)
-    
-    for piece in connections:
-        if piece not in visited:
-            group = []
-            dfs(piece, group)
-            if len(group) >= 2:  # Only keep groups with at least 2 pieces
-                groups.append(sorted(group))
-    
-    # Sort groups by size (largest first)
-    groups.sort(key=len, reverse=True)
-    
-    return groups
+    # Check if profiles exist
+    profile1 = edge1.get('profile', np.array([]))
+    profile2 = edge2.get('profile', np.array([]))
+
+    if len(profile1) == 0 or len(profile2) == 0:
+        return 0.0
+
+    if len(profile1) != len(profile2):
+        return 0.0
+
+    # Length check
+    length1 = edge1.get('length', 0)
+    length2 = edge2.get('length', 0)
+
+    if length1 <= 0 or length2 <= 0:
+        return 0.0
+
+    length_ratio = min(length1, length2) / max(length1, length2)
+
+    if length_ratio < 0.85:
+        return 0.0
+
+    # Prepare profiles for comparison
+    # For convex-concave matching, we need to flip one profile
+    # Convex edge should have negative deviations (bulging outward)
+    # Concave edge should have positive deviations (indenting inward)
+
+    p1 = profile1.copy()
+    p2 = profile2.copy()
+
+    # If edge1 is convex, we flip edge2 (reverse and negate)
+    # to match the complementary shape
+    if edge1['type'] == 'convex':
+        p2 = -p2[::-1]
+    elif edge2['type'] == 'convex':
+        p1 = -p1[::-1]
+
+    # Compute L2 distance (normalized)
+    distance = np.linalg.norm(p1 - p2) / len(p1)
+
+    # Convert distance to score
+    # Smaller distance = higher score
+    # Using exponential decay: score = exp(-distance * k)
+    # k controls the sensitivity
+    score = np.exp(-distance * 5)
+
+    # Apply length ratio as a multiplier
+    final_score = score * length_ratio
+
+    # Apply type confidence as a factor
+    confidence1 = edge1.get('type_confidence', 1.0)
+    confidence2 = edge2.get('type_confidence', 1.0)
+    final_score *= (confidence1 * confidence2) ** 0.25
+
+    return float(final_score)
 
 
-def validate_group(group: List[str], features: Dict[str, Dict[str, Any]], 
-                  matches: List[Dict[str, Any]]) -> bool:
+def compute_match_score_flat(edge1: Dict[str, Any], edge2: Dict[str, Any]) -> float:
     """
-    Validate that a group of pieces can actually fit together.
-    
+    Compute matching score between two flat edges.
+
+    Flat edges typically occur on border pieces and should match
+    with other border pieces of similar length.
+
     Args:
-        group: List of piece names in the group
-        features: Dictionary of piece features
-        matches: List of all matches
-        
+        edge1: First flat edge
+        edge2: Second flat edge
+
     Returns:
-        True if the group is valid
+        Score between 0.0 and 1.0
     """
-    # For now, return True for all groups
-    # In a more sophisticated implementation, we would check:
-    # 1. Spatial consistency (pieces don't overlap)
-    # 2. All connections are valid
-    # 3. No impossible configurations
-    
-    return True
+    # Length check (more strict for flat edges)
+    length1 = edge1.get('length', 0)
+    length2 = edge2.get('length', 0)
+
+    if length1 <= 0 or length2 <= 0:
+        return 0.0
+
+    length_ratio = min(length1, length2) / max(length1, length2)
+
+    if length_ratio < 0.90:
+        return 0.0
+
+    # For flat edges, we mainly care about length similarity
+    # The profile should be near-zero for truly flat edges
+    profile1 = edge1.get('profile', np.array([]))
+    profile2 = edge2.get('profile', np.array([]))
+
+    if len(profile1) == 0 or len(profile2) == 0:
+        return 0.0
+
+    # Check that both profiles are actually flat
+    max_dev1 = np.max(np.abs(profile1))
+    max_dev2 = np.max(np.abs(profile2))
+
+    if max_dev1 > 0.05 or max_dev2 > 0.05:
+        return 0.0
+
+    # Score based on length similarity
+    score = length_ratio * 0.9  # Flat-flat matches get slightly lower max score
+
+    return float(score)
+
+
+def filter_by_type(edge1: Dict[str, Any], edge2: Dict[str, Any]) -> bool:
+    """
+    Check if two edges are compatible types for matching.
+
+    Args:
+        edge1: First edge
+        edge2: Second edge
+
+    Returns:
+        True if edges can potentially match
+    """
+    type1 = edge1.get('type', 'unknown')
+    type2 = edge2.get('type', 'unknown')
+
+    if type1 == 'unknown' or type2 == 'unknown':
+        return False
+
+    # Convex-concave pairs
+    if (type1 == 'convex' and type2 == 'concave') or \
+       (type1 == 'concave' and type2 == 'convex'):
+        return True
+
+    # Flat-flat pairs
+    if type1 == 'flat' and type2 == 'flat':
+        return True
+
+    return False
+
+
+def get_edge_statistics(features: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Compute statistics about all edges for analysis.
+
+    Args:
+        features: Dictionary of extracted features
+
+    Returns:
+        Dictionary with edge statistics
+    """
+    type_counts = {'convex': 0, 'concave': 0, 'flat': 0, 'unknown': 0}
+    lengths = []
+    confidences = []
+
+    for piece_features in features.values():
+        for edge_name in ['top', 'right', 'bottom', 'left']:
+            edge = piece_features['edges'][edge_name]
+            edge_type = edge.get('type', 'unknown')
+            type_counts[edge_type] = type_counts.get(edge_type, 0) + 1
+
+            if edge.get('length', 0) > 0:
+                lengths.append(edge['length'])
+
+            if 'type_confidence' in edge:
+                confidences.append(edge['type_confidence'])
+
+    return {
+        'type_counts': type_counts,
+        'total_edges': sum(type_counts.values()),
+        'avg_length': np.mean(lengths) if lengths else 0,
+        'std_length': np.std(lengths) if lengths else 0,
+        'avg_confidence': np.mean(confidences) if confidences else 0
+    }

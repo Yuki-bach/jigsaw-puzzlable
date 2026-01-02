@@ -1,125 +1,163 @@
 #!/usr/bin/env python3
 """
 Jigsaw Puzzlable - Main execution script
-Finds matching puzzle pieces from a collection of white jigsaw pieces.
+
+Finds matching puzzle pieces from a collection of white jigsaw pieces
+by analyzing their edge shapes.
 """
 
-import time
 import sys
-import os
-from datetime import datetime
+import time
+from pathlib import Path
+
 from modules.preprocessing import load_pieces, preprocess_all_pieces
-from modules.feature_extraction import extract_features
-from modules.matching import find_matching_pairs, form_groups
+from modules.corner_detection import detect_corners
+from modules.edge_analysis import analyze_edges
+from modules.matching import find_matching_pairs, get_edge_statistics
+from modules.group_formation import form_groups, get_connection_summary
 from modules.visualization import save_results
-
-
-def save_threshold_experiment(threshold, num_matches, groups, processing_time):
-    """Save threshold experiment results to a file."""
-    experiment_file = "threshold_experiment_log.txt"
-    
-    with open(experiment_file, 'a', encoding='utf-8') as f:
-        f.write(f"\n{'='*50}\n")
-        f.write(f"実験日時: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-        f.write(f"閾値: {threshold}\n")
-        f.write(f"マッチ数: {num_matches}\n")
-        f.write(f"グループ数: {len(groups)}\n")
-        f.write(f"処理時間: {processing_time:.2f}秒\n")
-        f.write(f"グループ詳細:\n")
-        
-        for i, group in enumerate(groups):
-            f.write(f"  グループ{i+1}: {len(group)}個")
-            if len(group) <= 5:
-                f.write(f" ({', '.join(group)})\n")
-            else:
-                f.write(f" ({', '.join(group[:3])} ... 他{len(group)-3}個)\n")
 
 
 def main():
     """Main execution function."""
-    print("=== Jigsaw Puzzlable - Puzzle Piece Matcher ===\n")
-    
+    print("=" * 60)
+    print("  Jigsaw Puzzlable - Puzzle Piece Matcher")
+    print("=" * 60)
+    print()
+
     start_time = time.time()
-    
+
+    # Configuration
+    pieces_dir = "pieces/"
+    output_dir = "results/"
+    match_threshold = 0.7
+    min_score = 0.78  # Higher minimum for better quality
+    score_gap_ratio = 1.02  # Relaxed gap ratio (white pieces have similar scores)
+
     # Step 1: Load pieces
     print("Step 1: Loading pieces...")
-    pieces = load_pieces("pieces/")
-    print(f"Loaded {len(pieces)} pieces")
-    
+    pieces = load_pieces(pieces_dir)
+    print(f"  Loaded {len(pieces)} pieces")
+
     if len(pieces) == 0:
         print("Error: No pieces found in the pieces/ directory")
         sys.exit(1)
-    
-    # Step 2: Preprocess pieces
-    print("\nStep 2: Preprocessing pieces...")
+
+    # Step 2: Preprocess pieces (contour extraction)
+    print("\nStep 2: Preprocessing pieces (contour extraction)...")
     processed_pieces = preprocess_all_pieces(pieces)
-    print(f"Successfully processed {len(processed_pieces)} pieces")
-    
+    print(f"  Successfully processed {len(processed_pieces)} pieces")
+
     if len(processed_pieces) == 0:
         print("Error: No pieces could be processed successfully")
         sys.exit(1)
-    
-    # Step 3: Extract features
-    print("\nStep 3: Extracting features...")
-    features = extract_features(processed_pieces)
-    print(f"Extracted features from {len(features)} pieces")
-    
+
+    # Step 3: Detect corners
+    print("\nStep 3: Detecting corners...")
+    corners_data = {}
+    corner_methods = {'curvature': 0, 'pca': 0, 'rect': 0}
+
+    for piece_name, piece_data in processed_pieces.items():
+        contour = piece_data['contour']
+        corners, method = detect_corners(contour)
+        corners_data[piece_name] = (corners, method)
+        corner_methods[method] = corner_methods.get(method, 0) + 1
+
+    print(f"  Corner detection methods used:")
+    print(f"    Curvature: {corner_methods['curvature']}")
+    print(f"    PCA: {corner_methods['pca']}")
+    print(f"    Rectangle: {corner_methods['rect']}")
+
+    # Step 4: Analyze edges
+    print("\nStep 4: Analyzing edges...")
+    features = {}
+
+    for piece_name, piece_data in processed_pieces.items():
+        if piece_name not in corners_data:
+            continue
+
+        corners, corner_method = corners_data[piece_name]
+        contour = piece_data['contour']
+
+        edges = analyze_edges(contour, corners)
+
+        features[piece_name] = {
+            'corners': corners,
+            'corner_method': corner_method,
+            'edges': edges,
+            'area': piece_data['area'],
+            'perimeter': piece_data['perimeter'],
+            'contour': contour
+        }
+
+    print(f"  Extracted features from {len(features)} pieces")
+
+    # Print edge statistics
+    edge_stats = get_edge_statistics(features)
+    print(f"\n  Edge type distribution:")
+    print(f"    Convex:  {edge_stats['type_counts']['convex']}")
+    print(f"    Concave: {edge_stats['type_counts']['concave']}")
+    print(f"    Flat:    {edge_stats['type_counts']['flat']}")
+    print(f"    Unknown: {edge_stats['type_counts']['unknown']}")
+
     if len(features) < 2:
-        print("Error: Need at least 2 pieces with valid features to find matches")
+        print("Error: Need at least 2 pieces with valid features")
         sys.exit(1)
-    
-    # Step 4: Find matching pairs
-    print("\nStep 4: Finding matching pairs...")
-    print("This may take a few minutes...")
-    
-    # Start with the highest threshold for the most selective matching
-    threshold = 0.99
-    matches = find_matching_pairs(features, threshold=threshold)
-    print(f"Found {len(matches)} potential matches with threshold {threshold}")
-    
-    # If too few matches, try slightly lower threshold
-    if len(matches) < 50:
-        print("Few matches found, trying lower threshold...")
-        threshold = 0.985
-        matches = find_matching_pairs(features, threshold=threshold)
-        print(f"Found {len(matches)} potential matches with threshold {threshold}")
-    
-    # Step 5: Form groups
-    print("\nStep 5: Forming groups...")
-    groups = form_groups(matches)
-    print(f"Formed {len(groups)} groups")
-    
+
+    # Step 5: Find matching pairs
+    print("\nStep 5: Finding matching pairs...")
+    print(f"  (This may take a few minutes for {len(features)} pieces...)")
+
+    matches = find_matching_pairs(features, threshold=match_threshold)
+    print(f"  Found {len(matches)} potential matches")
+
+    if matches:
+        top_scores = [m['score'] for m in matches[:10]]
+        print(f"  Top 10 match scores: {', '.join(f'{s:.1%}' for s in top_scores)}")
+
+    # Step 6: Form groups (with high-confidence filtering)
+    print("\nStep 6: Forming groups with validation...")
+    groups = form_groups(matches, min_score=min_score, score_gap_ratio=score_gap_ratio)
+    print(f"  Formed {len(groups)} validated groups")
+
     # Print group summary
     if groups:
-        print("\nGroup summary:")
-        for i, group in enumerate(groups[:10]):  # Show first 10 groups
-            print(f"  Group {i+1}: {len(group)} pieces - {', '.join(group[:5])}")
-            if len(group) > 5:
-                print(f"            ... and {len(group) - 5} more")
-    
-    # Step 6: Save results
-    print("\nStep 6: Saving results...")
+        print("\n  Group summary:")
+        for i, group in enumerate(groups[:10]):
+            print(f"    Group {i+1}: {group['size']} pieces, "
+                  f"confidence: {group['avg_confidence']:.1%} "
+                  f"(min: {group['min_confidence']:.1%})")
+
+        if len(groups) > 10:
+            print(f"    ... and {len(groups) - 10} more groups")
+
+    # Step 7: Save results
+    print("\nStep 7: Saving results...")
     processing_time = time.time() - start_time
-    save_results(groups, pieces, features, matches, processing_time, "results/")
-    
-    # Save threshold experiment results
-    save_threshold_experiment(threshold, len(matches), groups, processing_time)
-    
+
+    save_results(groups, pieces, features, matches, processing_time, output_dir)
+
     print(f"\nProcessing complete in {processing_time:.2f} seconds!")
-    print("Results saved to:")
-    print("  - results/groups.png (visualization)")
-    print("  - results/connections.txt (piece connections)")
-    print("  - results/matching_log.json (detailed matches)")
-    print("  - results/summary.txt (summary)")
-    
-    # Success criteria check
-    if len(groups) >= 5:
-        print("\n✓ Success: Found at least 5 groups of matching pieces!")
-    else:
-        print("\n⚠ Warning: Found fewer than 5 groups. You may need to:")
-        print("  - Adjust the matching threshold")
-        print("  - Improve preprocessing for better edge detection")
-        print("  - Check the quality of input images")
+    print("\nResults saved to:")
+    print(f"  - {output_dir}groups.png (visualization)")
+    print(f"  - {output_dir}summary.txt (summary)")
+    print(f"  - {output_dir}connections.txt (connection details)")
+    print(f"  - {output_dir}assembly_guide.txt (assembly guide)")
+    print(f"  - {output_dir}matching_log.json (detailed data)")
+
+    # Final summary
+    print("\n" + "=" * 60)
+    print("  Summary")
+    print("=" * 60)
+
+    conn_summary = get_connection_summary(groups)
+    print(f"  Total pieces processed: {len(features)}")
+    print(f"  Total validated groups: {conn_summary['num_groups']}")
+    print(f"  Total validated connections: {conn_summary['total_connections']}")
+
+    if conn_summary['num_groups'] > 0:
+        print(f"  Average confidence: {conn_summary['avg_score']:.1%}")
+        print(f"  Confidence range: {conn_summary['min_score']:.1%} - {conn_summary['max_score']:.1%}")
 
 
 if __name__ == "__main__":
